@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#if defined(__GLIBC__)
+#if defined(__GLIBC__) || defined(__BIONIC__)
 
 #include <endian.h>
 #include <byteswap.h>
