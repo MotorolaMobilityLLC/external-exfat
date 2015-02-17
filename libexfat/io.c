@@ -38,9 +38,9 @@ struct exfat_dev
 {
 	int fd;
 	enum exfat_mode mode;
-	off_t size; /* in bytes */
+	loff_t size; /* in bytes */
 #ifdef USE_UBLIO
-	off_t pos;
+	loff_t pos;
 	ublio_filehandle_t ufh;
 #endif
 };
@@ -173,7 +173,7 @@ struct exfat_dev* exfat_open(const char* spec, enum exfat_mode mode)
 		{
 			close(dev->fd);
 			free(dev);
-			exfat_error("failed to get size of `%s'", spec);
+			exfat_error("failed to get size of `%s' (%d)", spec, errno);
 			return NULL;
 		}
 		if (exfat_seek(dev, 0, SEEK_SET) == -1)
@@ -241,22 +241,22 @@ enum exfat_mode exfat_get_mode(const struct exfat_dev* dev)
 	return dev->mode;
 }
 
-off_t exfat_get_size(const struct exfat_dev* dev)
+loff_t exfat_get_size(const struct exfat_dev* dev)
 {
 	return dev->size;
 }
 
-off_t exfat_seek(struct exfat_dev* dev, off_t offset, int whence)
+loff_t exfat_seek(struct exfat_dev* dev, loff_t offset, int whence)
 {
 #ifdef USE_UBLIO
 	/* XXX SEEK_CUR will be handled incorrectly */
 	return dev->pos = lseek(dev->fd, offset, whence);
 #else
-	return lseek(dev->fd, offset, whence);
+	return lseek64(dev->fd, offset, whence);
 #endif
 }
 
-ssize_t exfat_read(struct exfat_dev* dev, void* buffer, size_t size)
+ssize_t exfat_read(struct exfat_dev* dev, void* buffer, ssize_t size)
 {
 #ifdef USE_UBLIO
 	ssize_t result = ublio_pread(dev->ufh, buffer, size, dev->pos);
@@ -268,7 +268,7 @@ ssize_t exfat_read(struct exfat_dev* dev, void* buffer, size_t size)
 #endif
 }
 
-ssize_t exfat_write(struct exfat_dev* dev, const void* buffer, size_t size)
+ssize_t exfat_write(struct exfat_dev* dev, const void* buffer, ssize_t size)
 {
 #ifdef USE_UBLIO
 	ssize_t result = ublio_pwrite(dev->ufh, buffer, size, dev->pos);
@@ -280,8 +280,8 @@ ssize_t exfat_write(struct exfat_dev* dev, const void* buffer, size_t size)
 #endif
 }
 
-void exfat_pread(struct exfat_dev* dev, void* buffer, size_t size,
-		off_t offset)
+void exfat_pread(struct exfat_dev* dev, void* buffer, ssize_t size,
+		loff_t offset)
 {
 #ifdef USE_UBLIO
 	if (ublio_pread(dev->ufh, buffer, size, offset) != size)
@@ -292,8 +292,8 @@ void exfat_pread(struct exfat_dev* dev, void* buffer, size_t size,
 				(uint64_t) offset);
 }
 
-void exfat_pwrite(struct exfat_dev* dev, const void* buffer, size_t size,
-		off_t offset)
+void exfat_pwrite(struct exfat_dev* dev, const void* buffer, ssize_t size,
+		loff_t offset)
 {
 #ifdef USE_UBLIO
 	if (ublio_pwrite(dev->ufh, buffer, size, offset) != size)
@@ -305,13 +305,13 @@ void exfat_pwrite(struct exfat_dev* dev, const void* buffer, size_t size,
 }
 
 ssize_t exfat_generic_pread(const struct exfat* ef, struct exfat_node* node,
-		void* buffer, size_t size, off_t offset)
+		void* buffer, ssize_t size, loff_t offset)
 {
 	cluster_t cluster;
 	char* bufp = buffer;
-	off_t lsize, loffset, remainder;
+	loff_t lsize, loffset, remainder;
 
-	if (offset >= node->size)
+	if ((uint64_t)offset >= node->size)
 		return 0;
 	if (size == 0)
 		return 0;
@@ -324,7 +324,7 @@ ssize_t exfat_generic_pread(const struct exfat* ef, struct exfat_node* node,
 	}
 
 	loffset = offset % CLUSTER_SIZE(*ef->sb);
-	remainder = MIN(size, node->size - offset);
+	remainder = MIN((uint64_t)size, node->size - offset);
 	while (remainder > 0)
 	{
 		if (CLUSTER_INVALID(cluster))
@@ -341,17 +341,17 @@ ssize_t exfat_generic_pread(const struct exfat* ef, struct exfat_node* node,
 	}
 	if (!ef->ro && !ef->noatime)
 		exfat_update_atime(node);
-	return MIN(size, node->size - offset) - remainder;
+	return MIN((uint64_t)size, node->size - offset) - remainder;
 }
 
 ssize_t exfat_generic_pwrite(struct exfat* ef, struct exfat_node* node,
-		const void* buffer, size_t size, off_t offset)
+		const void* buffer, ssize_t size, loff_t offset)
 {
 	cluster_t cluster;
 	const char* bufp = buffer;
-	off_t lsize, loffset, remainder;
+	loff_t lsize, loffset, remainder;
 
-	if (offset + size > node->size)
+	if ((uint64_t)offset + size > node->size)
 		if (exfat_truncate(ef, node, offset + size) != 0)
 			return -1;
 	if (size == 0)

@@ -53,7 +53,7 @@ void exfat_get_name(const struct exfat_node* node, char* buffer, size_t n)
 uint16_t exfat_start_checksum(const struct exfat_entry_meta1* entry)
 {
 	uint16_t sum = 0;
-	int i;
+	unsigned i;
 
 	for (i = 0; i < sizeof(struct exfat_entry); i++)
 		if (i != 2 && i != 3) /* skip checksum field itself */
@@ -63,7 +63,7 @@ uint16_t exfat_start_checksum(const struct exfat_entry_meta1* entry)
 
 uint16_t exfat_add_checksum(const void* entry, uint16_t sum)
 {
-	int i;
+	unsigned i;
 
 	for (i = 0; i < sizeof(struct exfat_entry); i++)
 		sum = ((sum << 15) | (sum >> 1)) + ((const uint8_t*) entry)[i];
@@ -158,8 +158,8 @@ void exfat_print_info(const struct exfat_super_block* sb,
 		uint32_t free_clusters)
 {
 	struct exfat_human_bytes hb;
-	off_t total_space = le64_to_cpu(sb->sector_count) * SECTOR_SIZE(*sb);
-	off_t avail_space = (off_t) free_clusters * CLUSTER_SIZE(*sb);
+	loff_t total_space = le64_to_cpu(sb->sector_count) * SECTOR_SIZE(*sb);
+	loff_t avail_space = (loff_t) free_clusters * CLUSTER_SIZE(*sb);
 
 	printf("File system version           %hhu.%hhu\n",
 			sb->version.major, sb->version.minor);
