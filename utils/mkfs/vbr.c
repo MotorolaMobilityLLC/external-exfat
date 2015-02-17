@@ -25,12 +25,12 @@
 #include "uct.h"
 #include "rootdir.h"
 
-static off_t vbr_alignment(void)
+static loff_t vbr_alignment(void)
 {
 	return get_sector_size();
 }
 
-static off_t vbr_size(void)
+static loff_t vbr_size(void)
 {
 	return 12 * get_sector_size();
 }
@@ -41,7 +41,7 @@ static void init_sb(struct exfat_super_block* sb)
 	uint32_t fat_sectors;
 
 	clusters_max = get_volume_size() / get_cluster_size();
-	fat_sectors = DIV_ROUND_UP((off_t) clusters_max * sizeof(cluster_t),
+	fat_sectors = DIV_ROUND_UP((loff_t) clusters_max * sizeof(cluster_t),
 			get_sector_size());
 
 	memset(sb, 0, sizeof(struct exfat_super_block));

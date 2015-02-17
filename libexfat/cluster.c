@@ -25,7 +25,7 @@
 /*
  * Sector to absolute offset.
  */
-static off_t s2o(const struct exfat* ef, off_t sector)
+static loff_t s2o(const struct exfat* ef, loff_t sector)
 {
 	return sector << ef->sb->sector_bits;
 }
@@ -33,18 +33,18 @@ static off_t s2o(const struct exfat* ef, off_t sector)
 /*
  * Cluster to sector.
  */
-static off_t c2s(const struct exfat* ef, cluster_t cluster)
+static loff_t c2s(const struct exfat* ef, cluster_t cluster)
 {
 	if (cluster < EXFAT_FIRST_DATA_CLUSTER)
 		exfat_bug("invalid cluster number %u", cluster);
 	return le32_to_cpu(ef->sb->cluster_sector_start) +
-		((off_t) (cluster - EXFAT_FIRST_DATA_CLUSTER) << ef->sb->spc_bits);
+		((loff_t) (cluster - EXFAT_FIRST_DATA_CLUSTER) << ef->sb->spc_bits);
 }
 
 /*
  * Cluster to absolute offset.
  */
-off_t exfat_c2o(const struct exfat* ef, cluster_t cluster)
+loff_t exfat_c2o(const struct exfat* ef, cluster_t cluster)
 {
 	return s2o(ef, c2s(ef, cluster));
 }
@@ -52,7 +52,7 @@ off_t exfat_c2o(const struct exfat* ef, cluster_t cluster)
 /*
  * Sector to cluster.
  */
-static cluster_t s2c(const struct exfat* ef, off_t sector)
+static cluster_t s2c(const struct exfat* ef, loff_t sector)
 {
 	return ((sector - le32_to_cpu(ef->sb->cluster_sector_start)) >>
 			ef->sb->spc_bits) + EXFAT_FIRST_DATA_CLUSTER;
@@ -71,7 +71,7 @@ cluster_t exfat_next_cluster(const struct exfat* ef,
 		const struct exfat_node* node, cluster_t cluster)
 {
 	le32_t next;
-	off_t fat_offset;
+	loff_t fat_offset;
 
 	if (cluster < EXFAT_FIRST_DATA_CLUSTER)
 		exfat_bug("bad cluster 0x%x", cluster);
@@ -137,7 +137,7 @@ void exfat_flush_cmap(struct exfat* ef)
 static void set_next_cluster(const struct exfat* ef, int contiguous,
 		cluster_t current, cluster_t next)
 {
-	off_t fat_offset;
+	loff_t fat_offset;
 	le32_t next_le32;
 
 	if (contiguous)
@@ -306,7 +306,7 @@ static int shrink_file(struct exfat* ef, struct exfat_node* node,
 	return 0;
 }
 
-static void erase_raw(struct exfat* ef, size_t size, off_t offset)
+static void erase_raw(struct exfat* ef, size_t size, loff_t offset)
 {
 	exfat_pwrite(ef->dev, ef->zero_cluster, size, offset);
 }
@@ -408,7 +408,7 @@ static int find_used_clusters(const struct exfat* ef,
 	return 0;
 }
 
-int exfat_find_used_sectors(const struct exfat* ef, off_t* a, off_t* b)
+int exfat_find_used_sectors(const struct exfat* ef, loff_t* a, loff_t* b)
 {
 	cluster_t ca, cb;
 
