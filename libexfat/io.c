@@ -287,7 +287,7 @@ void exfat_pread(struct exfat_dev* dev, void* buffer, ssize_t size,
 #ifdef USE_UBLIO
 	if (ublio_pread(dev->ufh, buffer, size, offset) != size)
 #else
-	if (pread(dev->fd, buffer, size, offset) != size)
+	if (pread64(dev->fd, buffer, size, offset) != size)
 #endif
 		exfat_bug("failed to read %zu bytes from file at %"PRIu64, size,
 				(uint64_t) offset);
@@ -299,7 +299,7 @@ void exfat_pwrite(struct exfat_dev* dev, const void* buffer, ssize_t size,
 #ifdef USE_UBLIO
 	if (ublio_pwrite(dev->ufh, buffer, size, offset) != size)
 #else
-	if (pwrite(dev->fd, buffer, size, offset) != size)
+	if (pwrite64(dev->fd, buffer, size, offset) != size)
 #endif
 		exfat_bug("failed to write %zu bytes to file at %"PRIu64, size,
 				(uint64_t) offset);
