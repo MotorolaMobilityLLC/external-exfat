@@ -26,6 +26,7 @@
 #include <unistd.h>
 
 int exfat_errors;
+int exfat_fixes;
 
 /*
  * This message means an internal bug in exFAT implementation.
@@ -63,6 +64,28 @@ void exfat_error(const char* format, ...)
 
 	fflush(stdout);
 	fputs("ERROR: ", stderr);
+	vfprintf(stderr, format, ap);
+	va_end(ap);
+	fputs(".\n", stderr);
+
+	if (!isatty(STDERR_FILENO))
+		vsyslog(LOG_ERR, format, aq);
+	va_end(aq);
+}
+
+/*
+ * This message means an error in exFAT file system has been corrected.
+ */
+void exfat_fix(const char* format, ...)
+{
+	va_list ap, aq;
+
+	exfat_fixes++;
+	va_start(ap, format);
+	va_copy(aq, ap);
+
+	fflush(stdout);
+	fputs("FIXING: ", stderr);
 	vfprintf(stderr, format, ap);
 	va_end(ap);
 	fputs(".\n", stderr);
