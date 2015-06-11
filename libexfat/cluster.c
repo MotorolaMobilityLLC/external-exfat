@@ -352,7 +352,7 @@ int exfat_truncate(struct exfat* ef, struct exfat_node* node, uint64_t size)
 	uint32_t c2 = bytes2clusters(ef, size);
 	int rc = 0;
 
-	if (node->references == 0 && node->parent)
+	if (node->references == 0 && node->parent && !ef->fsck)
 		exfat_bug("no references, node changes can be lost");
 
 	if (node->size == size)
@@ -363,11 +363,11 @@ int exfat_truncate(struct exfat* ef, struct exfat_node* node, uint64_t size)
 	else if (c1 > c2)
 		rc = shrink_file(ef, node, c1, c1 - c2);
 
-	if (rc != 0)
+	if (rc != 0 && !ef->fsck)
 		return rc;
 
 	rc = erase_range(ef, node, node->size, size);
-	if (rc != 0)
+	if (rc != 0 && !ef->fsck)
 		return rc;
 
 	exfat_update_mtime(node);
