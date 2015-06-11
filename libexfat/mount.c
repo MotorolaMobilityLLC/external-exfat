@@ -149,6 +149,11 @@ int exfat_mount(struct exfat* ef, const char* spec, const char* options)
 		mode = EXFAT_MODE_ANY;
 	else
 		mode = EXFAT_MODE_RW;
+
+	/* Make sure that mount fixes any errors as well */
+	if (match_option(options, "fsck"))
+		ef->fsck = 1;
+
 	ef->dev = exfat_open(spec, mode);
 	if (ef->dev == NULL)
 		return -EIO;

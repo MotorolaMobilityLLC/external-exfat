@@ -184,6 +184,8 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 	uint16_t reference_checksum = 0;
 	uint16_t actual_checksum = 0;
 	uint64_t real_size = 0;
+	uint16_t name_hash = 0;
+	uint16_t actual_name_hash = 0;
 
 	*node = NULL;
 
@@ -249,12 +251,17 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 			init_node_meta2(*node, meta2);
 			actual_checksum = exfat_add_checksum(entry, actual_checksum);
 			real_size = le64_to_cpu(meta2->real_size);
+			name_hash = le16_to_cpu(meta2->name_hash);
 			/* empty files must be marked as non-contiguous */
 			if ((*node)->size == 0 && (meta2->flags & EXFAT_FLAG_CONTIGUOUS))
 			{
 				exfat_error("empty file marked as contiguous (0x%hhx)",
 						meta2->flags);
-				goto error;
+				if (!ef->fsck)
+					goto error;
+				exfat_fix("correcting");
+				(*node)->flags &= ~EXFAT_FLAG_CONTIGUOUS;
+				(*node)->flags |= EXFAT_ATTRIB_DIRTY;
 			}
 			/* directories must be aligned on at cluster boundary */
 			if (((*node)->flags & EXFAT_ATTRIB_DIR) &&
@@ -280,6 +287,25 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 			namep += EXFAT_ENAME_MAX;
 			if (--continuations == 0)
 			{
+				actual_name_hash =
+					le16_to_cpu(exfat_calc_name_hash(ef, (*node)->name));
+				if (actual_name_hash != name_hash)
+				{
+					char buffer[EXFAT_NAME_MAX + 1];
+
+					exfat_get_name(*node, buffer, EXFAT_NAME_MAX);
+					exfat_error("`%s' name hash mismatch (0x%hx != 0x%hx)",
+							buffer, actual_name_hash, name_hash);
+					if (!ef->fsck)
+						goto error;
+					if (ef->ro)
+						exfat_warn("should be 0x%hx", actual_name_hash);
+					else
+					{
+						exfat_fix("will use 0x%hx", actual_name_hash);
+						(*node)->flags |= EXFAT_ATTRIB_DIRTY;
+					}
+				}
 				/*
 				   There are two fields that contain file size. Maybe they
 				   plan to add compression support in the future and one of
@@ -299,7 +325,22 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 					exfat_error("`%s' real size does not equal to size "
 							"(%"PRIu64" != %"PRIu64")", buffer,
 							real_size, (*node)->size);
-					goto error;
+					if (!ef->fsck)
+						goto error;
+					/*
+					   OSX does this.  I don't know why.  Windows chkdsk
+					   doesn't flag it as a problem.  Might be a preallocation
+					   that has not been written to yet?  Mark the node for
+					   flushing, which will make the two sizes match the node
+					   size.  In practice, the node size is more correct.
+					 */
+					if (ef->ro)
+						exfat_warn("should be  %"PRIu64, (*node)->size);
+					else
+					{
+						exfat_fix("using %"PRIu64, (*node)->size);
+						(*node)->flags |= EXFAT_ATTRIB_DIRTY;
+					}
 				}
 				if (actual_checksum != reference_checksum)
 				{
@@ -308,7 +349,20 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 					exfat_get_name(*node, buffer, EXFAT_NAME_MAX);
 					exfat_error("`%s' has invalid checksum (0x%hx != 0x%hx)",
 							buffer, actual_checksum, reference_checksum);
-					goto error;
+					if (!ef->fsck)
+						goto error;
+					/*
+					   FIXME: should probably do some sanity-checking on the
+					   rest of the node since the checksum is wrong.  The flush
+					   will generate a valid checksum.
+					*/
+					if (ef->ro)
+						exfat_warn("should be 0x%hx", actual_checksum);
+					else
+					{
+						exfat_fix("correcting checksum");
+						(*node)->flags |= EXFAT_ATTRIB_DIRTY;
+					}
 				}
 				if (fetch_next_entry(ef, parent, it) != 0)
 					goto error;
@@ -552,7 +606,9 @@ void exfat_flush_node(struct exfat* ef, struct exfat_node* node)
 	/* empty files must not be marked as contiguous */
 	if (node->size != 0 && IS_CONTIGUOUS(*node))
 		meta2.flags |= EXFAT_FLAG_CONTIGUOUS;
-	/* name hash remains unchanged, no need to recalculate it */
+	/* name hash remains unchanged, no need to recalculate it if not fsck */
+	if (ef->fsck)
+		meta2.name_hash = exfat_calc_name_hash(ef, node->name);
 
 	meta1.checksum = exfat_calc_checksum(&meta1, &meta2, node->name);
 

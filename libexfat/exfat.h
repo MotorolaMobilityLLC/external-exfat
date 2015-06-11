@@ -106,6 +106,7 @@ struct exfat
 	gid_t gid;
 	int ro;
 	bool noatime;
+	int fsck;
 };
 
 /* in-core nodes iterator */
@@ -122,10 +123,13 @@ struct exfat_human_bytes
 };
 
 extern int exfat_errors;
+extern int exfat_fixes;
 
 void exfat_bug(const char* format, ...)
 	__attribute__((format(printf, 1, 2), noreturn));
 void exfat_error(const char* format, ...)
+	__attribute__((format(printf, 1, 2)));
+void exfat_fix(const char* format, ...)
 	__attribute__((format(printf, 1, 2)));
 void exfat_warn(const char* format, ...)
 	__attribute__((format(printf, 1, 2)));
