@@ -25,6 +25,11 @@
 #include <exfatfs.h>
 #include <inttypes.h>
 
+#ifdef LENOVO_FSCK_SLEEP
+#include <unistd.h>
+int fsck_sec;
+#endif
+
 #define exfat_debug(format, ...)
 
 #define EXIT_SUCCESS		0
@@ -75,6 +80,11 @@ static int dirck(struct exfat* ef, const char* path)
 	size_t path_length;
 	char* entry_path;
 
+#ifdef LENOVO_FSCK_SLEEP
+	struct timespec ts;
+	int result;
+#endif
+
 	if (exfat_lookup(ef, &parent, path) != 0)
 		exfat_bug("directory `%s' is not found", path);
 	if (!(parent->flags & EXFAT_ATTRIB_DIR))
@@ -119,6 +129,15 @@ static int dirck(struct exfat* ef, const char* path)
 			/* TODO: handle errors of file's nodeck() */
 		}
 		exfat_put_node(ef, node);
+
+#ifdef LENOVO_FSCK_SLEEP
+		result = clock_gettime(CLOCK_BOOTTIME, &ts);
+		if (result == 0 && ts.tv_sec >= fsck_sec + 8) {
+			printf("Checking file system sleep at %d.\n", fsck_sec);
+			sleep(1);
+			fsck_sec = ts.tv_sec + 1;
+		}
+#endif
 	}
 	exfat_closedir(ef, &it);
 	exfat_put_node(ef, parent);
@@ -128,6 +147,14 @@ static int dirck(struct exfat* ef, const char* path)
 
 static int fsck(struct exfat* ef)
 {
+#ifdef LENOVO_FSCK_SLEEP
+	struct timespec ts;
+	int result;
+	result = clock_gettime(CLOCK_BOOTTIME, &ts);
+	if (result == 0) {
+		fsck_sec = ts.tv_sec;
+	}
+#endif
 	exfat_print_info(ef->sb, exfat_count_free_clusters(ef));
 	return dirck(ef, "");
 }
