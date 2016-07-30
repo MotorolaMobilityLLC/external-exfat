@@ -31,6 +31,8 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/utils/fsck
 LOCAL_STATIC_LIBRARIES := libexfat libc
 LOCAL_FORCE_STATIC_EXECUTABLE := true
+#Lenovo wuzb1 2016-07-30 supprot fsck sleep
+LOCAL_CFLAGS = -DLENOVO_FSCK_SLEEP
 
 include $(BUILD_EXECUTABLE)
 
