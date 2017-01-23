@@ -181,7 +181,6 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 	const struct exfat_entry_upcase* upcase;
 	const struct exfat_entry_bitmap* bitmap;
 	const struct exfat_entry_label* label;
-	uint8_t entry_type = 0;
 	uint8_t continuations = 0;
 	le16_t* namep = NULL;
 	uint16_t reference_checksum = 0;
@@ -205,8 +204,7 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 		}
 
 		entry = get_entry_ptr(ef, it);
-		entry_type = entry->type;
-		switch (entry_type)
+		switch (entry->type)
 		{
 		case EXFAT_ENTRY_FILE:
 			if (continuations != 0)
@@ -222,12 +220,7 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 			if (continuations < 2)
 			{
 				exfat_error("too few continuations (%hhu)", continuations);
-				if (!ef->fsck)
-					goto error;
-				exfat_fix("invalidating");
-				entry_type &= ~EXFAT_ENTRY_VALID;
-				exfat_pwrite(ef->dev, &entry_type, 1,
-					     co2o(ef, it->cluster, it->offset));
+				goto error;
 			}
 			reference_checksum = le16_to_cpu(meta1->checksum);
 			actual_checksum = exfat_start_checksum(meta1);
@@ -249,23 +242,13 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 			{
 				exfat_error("unexpected continuation (%hhu)",
 						continuations);
-				if (!ef->fsck)
-					goto error;
-				exfat_fix("invalidating");
-				entry_type &= ~EXFAT_ENTRY_VALID;
-				exfat_pwrite(ef->dev, &entry_type, 1,
-					     co2o(ef, it->cluster, it->offset));
+				goto error;
 			}
 			meta2 = (const struct exfat_entry_meta2*) entry;
 			if (meta2->flags & ~(EXFAT_FLAG_ALWAYS1 | EXFAT_FLAG_CONTIGUOUS))
 			{
 				exfat_error("unknown flags in meta2 (0x%hhx)", meta2->flags);
-				if (!ef->fsck)
-					goto error;
-				exfat_fix("invalidating");
-				entry_type &= ~EXFAT_ENTRY_VALID;
-				exfat_pwrite(ef->dev, &entry_type, 1,
-					     co2o(ef, it->cluster, it->offset));
+				goto error;
 			}
 			init_node_meta2(*node, meta2);
 			actual_checksum = exfat_add_checksum(entry, actual_checksum);
@@ -297,12 +280,7 @@ static int readdir(struct exfat* ef, const struct exfat_node* parent,
 			if (continuations == 0)
 			{
 				exfat_error("unexpected continuation");
-				if (!ef->fsck)
-					goto error;
-				exfat_fix("invalidating");
-				entry_type &= ~EXFAT_ENTRY_VALID;
-				exfat_pwrite(ef->dev, &entry_type, 1,
-					     co2o(ef, it->cluster, it->offset));
+				goto error;
 			}
 			file_name = (const struct exfat_entry_name*) entry;
 			actual_checksum = exfat_add_checksum(entry, actual_checksum);
