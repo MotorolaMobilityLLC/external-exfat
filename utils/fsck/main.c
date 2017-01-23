@@ -22,18 +22,11 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <exfat.h>
 #include <exfatfs.h>
 #include <inttypes.h>
 
 #define exfat_debug(format, ...)
-
-#define EXIT_SUCCESS		0
-#define EXIT_ERRORS_CORRECTED	(1 << 0)
-#define EXIT_ERRORS_UNCORRECTED	(1 << 2)
-#define EXIT_OPERATIONAL_ERROR	(1 << 3)
-#define EXIT_SYNTAX_ERROR	(1 << 4)
 
 uint64_t files_count, directories_count;
 
@@ -68,7 +61,7 @@ static int nodeck(struct exfat* ef, struct exfat_node* node)
 	return rc;
 }
 
-static int dirck(struct exfat* ef, const char* path)
+static void dirck(struct exfat* ef, const char* path)
 {
 	struct exfat_node* parent;
 	struct exfat_node* node;
@@ -82,14 +75,14 @@ static int dirck(struct exfat* ef, const char* path)
 	if (!(parent->flags & EXFAT_ATTRIB_DIR))
 		exfat_bug("`%s' is not a directory (0x%x)", path, parent->flags);
 	if (nodeck(ef, parent) != 0)
-		return 0;
+		return;
 
 	path_length = strlen(path);
 	entry_path = malloc(path_length + 1 + EXFAT_NAME_MAX);
 	if (entry_path == NULL)
 	{
 		exfat_error("out of memory");
-		return -ENOMEM;
+		return;
 	}
 	strcpy(entry_path, path);
 	strcat(entry_path, "/");
@@ -100,7 +93,7 @@ static int dirck(struct exfat* ef, const char* path)
 		free(entry_path);
 		exfat_put_node(ef, parent);
 		exfat_error("failed to open directory `%s'", path);
-		return 0;
+		return;
 	}
 	while ((node = exfat_readdir(ef, &it)))
 	{
@@ -112,52 +105,43 @@ static int dirck(struct exfat* ef, const char* path)
 		{
 			directories_count++;
 			dirck(ef, entry_path);
-			/* TODO: handle errors in deep directory tree */
 		}
 		else
 		{
 			files_count++;
 			nodeck(ef, node);
-			/* TODO: handle errors of file's nodeck() */
 		}
 		exfat_put_node(ef, node);
 	}
 	exfat_closedir(ef, &it);
 	exfat_put_node(ef, parent);
 	free(entry_path);
-	return 0;
 }
 
-static int fsck(struct exfat* ef)
+static void fsck(struct exfat* ef)
 {
 	exfat_print_info(ef->sb, exfat_count_free_clusters(ef));
-	return dirck(ef, "");
+	dirck(ef, "");
 }
 
 static void usage(const char* prog)
 {
-	fprintf(stderr, "Usage: %s [-v] [-n|-y] <device>\n", prog);
-	exit(EXIT_SYNTAX_ERROR);
+	fprintf(stderr, "Usage: %s [-v] <device>\n", prog);
+	exit(1);
 }
 
 int main(int argc, char* argv[])
 {
 	char** pp;
 	const char* spec = NULL;
-	char *options = "fsck,ro";	/* FIXME: interactive mode? */
 	struct exfat ef;
-	int result = EXIT_SUCCESS;
 
 	printf("exfatfsck %u.%u.%u\n",
 			EXFAT_VERSION_MAJOR, EXFAT_VERSION_MINOR, EXFAT_VERSION_PATCH);
 
 	for (pp = argv + 1; *pp; pp++)
 	{
-		if (strcmp(*pp, "-n") == 0)
-			options = "fsck,ro";
-		else if (strcmp(*pp, "-y") == 0)
-			options = "fsck,rw";
-		else if (strcmp(*pp, "-v") == 0)
+		if (strcmp(*pp, "-v") == 0)
 		{
 			puts("Copyright (C) 2011-2013  Andrew Nayenko");
 			return 0;
@@ -170,26 +154,21 @@ int main(int argc, char* argv[])
 	if (spec == NULL)
 		usage(argv[0]);
 
-	if (exfat_mount(&ef, spec, options) != 0)
-		return EXIT_OPERATIONAL_ERROR;
+	if (exfat_mount(&ef, spec, "ro") != 0)
+		return 1;
 
 	printf("Checking file system on %s.\n", spec);
-	if (fsck(&ef) != 0)
-		result |= EXIT_OPERATIONAL_ERROR;
+	fsck(&ef);
 	exfat_unmount(&ef);
 	printf("Totally %"PRIu64" directories and %"PRIu64" files.\n",
 			directories_count, files_count);
 
 	fputs("File system checking finished. ", stdout);
-	if (exfat_errors > 0)
+	if (exfat_errors != 0)
 	{
-		printf("ERRORS FOUND/FIXED: %d/%d.\n", exfat_errors, exfat_fixes);
-		if (exfat_fixes > 0)
-			result |= EXIT_ERRORS_CORRECTED;
-		if (exfat_fixes < exfat_errors)
-			result |= EXIT_ERRORS_UNCORRECTED;
+		printf("ERRORS FOUND: %d.\n", exfat_errors);
+		return 1;
 	}
-	if (result == EXIT_SUCCESS)
-		puts("No errors found.");
-	return result;
+	puts("No errors found.");
+	return 0;
 }
