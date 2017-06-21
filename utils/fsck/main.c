@@ -78,7 +78,7 @@ static void dirck(struct exfat* ef, const char* path)
 		return;
 
 	path_length = strlen(path);
-	entry_path = malloc(path_length + 1 + EXFAT_NAME_MAX);
+	entry_path = malloc(path_length + 1 + (EXFAT_NAME_MAX * 6));
 	if (entry_path == NULL)
 	{
 		exfat_error("out of memory");
@@ -97,7 +97,7 @@ static void dirck(struct exfat* ef, const char* path)
 	}
 	while ((node = exfat_readdir(ef, &it)))
 	{
-		exfat_get_name(node, entry_path + path_length + 1, EXFAT_NAME_MAX);
+		exfat_get_name(node, entry_path + path_length + 1, (EXFAT_NAME_MAX * 6));
 		exfat_debug("%s: %s, %"PRIu64" bytes, cluster %u", entry_path,
 				IS_CONTIGUOUS(*node) ? "contiguous" : "fragmented",
 				node->size, node->start_cluster);
