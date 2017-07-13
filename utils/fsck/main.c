@@ -135,6 +135,7 @@ int main(int argc, char* argv[])
 	char** pp;
 	const char* spec = NULL;
 	struct exfat ef;
+	(void)argc;
 
 	printf("exfatfsck %u.%u.%u\n",
 			EXFAT_VERSION_MAJOR, EXFAT_VERSION_MINOR, EXFAT_VERSION_PATCH);

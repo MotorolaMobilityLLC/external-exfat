@@ -203,6 +203,7 @@ int main(int argc, char* argv[])
 	uint32_t volume_serial = 0;
 	uint64_t first_sector = 0;
 	struct exfat_dev* dev;
+	(void)argc;
 
 	printf("mkexfatfs %u.%u.%u\n",
 			EXFAT_VERSION_MAJOR, EXFAT_VERSION_MINOR, EXFAT_VERSION_PATCH);
